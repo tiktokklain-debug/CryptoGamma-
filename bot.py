@@ -10,7 +10,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 import json
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН_СЮДА")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
 
 bot = Bot(token=BOT_TOKEN)
@@ -25,13 +25,13 @@ def get_user(uid):
 def is_admin(uid): return uid in ADMIN_IDS
 
 def main_menu(uid):
-    WEBAPP_URL = "cryptoapp-67.vercel.app" # ТВОЯ ССЫЛКА
+    # ВСТАВЬ СЮДА СВОЮ ССЫЛКУ, ОБЯЗАТЕЛЬНО С HTTPS://
+    WEBAPP_URL = "https://cryptoapp-67.vercel.app"
+    
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance")],
     ]
-    if is_admin(uid):
-        kb.append([InlineKeyboardButton(text="👑 Админка", callback_data="admin_panel")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
 @dp.message(Command("start"))
@@ -42,7 +42,7 @@ async def start(message: Message):
         users[uid]["username"] = message.from_user.username or ""
         await message.answer("👋 **Добро пожаловать в CryptoGamma!**\n\nВыбери действие:", reply_markup=main_menu(uid), parse_mode="Markdown")
     except Exception as e:
-        print(f"Ошибка в start: {e}")
+        print(f"Ошибка start: {e}")
 
 @dp.callback_query(F.data == "balance")
 async def show_balance(call: CallbackQuery):
@@ -51,7 +51,7 @@ async def show_balance(call: CallbackQuery):
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]])
         await call.message.edit_text(f"💰 Баланс: `{user['balance']:.4f}` USDT", reply_markup=kb, parse_mode="Markdown")
         await call.answer()
-    except Exception as e:
+    except:
         await call.answer("Ошибка", show_alert=True)
 
 @dp.callback_query(F.data == "back")
@@ -62,13 +62,6 @@ async def back(call: CallbackQuery):
     except:
         pass
 
-@dp.callback_query(F.data == "admin_panel")
-async def admin_panel(call: CallbackQuery):
-    if not is_admin(call.from_user.id):
-        return await call.answer("Нет доступа.", show_alert=True)
-    await call.message.edit_text("👑 **Админ-панель**\n\nИспользуй Mini App для управления.", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]]))
-    await call.answer()
-
 # ==================== ЛОВИМ ДАННЫЕ ИЗ MINI APP ====================
 @dp.message(F.web_app_data)
 async def web_app_handler(message: Message):
@@ -78,7 +71,7 @@ async def web_app_handler(message: Message):
         uid = message.from_user.id
 
         if action == "deposit":
-            await message.answer("📥 Пополнение доступно в Mini App (API в разработке).")
+            await message.answer("📥 Пополнение доступно в Mini App.")
             
         elif action == "join_giveaway":
             await message.answer("🎉 Ты участвуешь в розыгрыше! Жди результатов.")
@@ -104,10 +97,10 @@ async def web_app_handler(message: Message):
             for u in list(users.keys()):
                 try:
                     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎉 Участвовать", web_app=WebAppInfo(url="https://cryptoapp3.vercel.app"))]])
-                    await bot.send_message(u, f"🎁 **РОЗЫГРЫШ!**\n\n{text}\n\nНажми кнопку ниже, чтобы участвовать!", reply_markup=kb, parse_mode="Markdown")
+                    await bot.send_message(u, f"🎁 **РОЗЫГРЫШ!**\n\n{text}", reply_markup=kb, parse_mode="Markdown")
                     sent += 1
                 except:
-                    pass # Если пользователь заблокировал бота, просто пропускаем его
+                    pass
             await message.answer(f"✅ Розыгрыш разослан {sent} пользователям!")
 
     except Exception as e:
