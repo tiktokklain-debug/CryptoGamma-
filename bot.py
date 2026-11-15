@@ -4,10 +4,11 @@ import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, WebAppData
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
+import json
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
@@ -15,117 +16,90 @@ ADMIN_IDS = [8636027393]
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
+# ПРОСТАЯ БАЗА (Сбрасывается при перезапуске Render)
 users = {}
 def get_user(uid):
     if uid not in users:
-        users[uid] = {"balance": {"USDT": 0.0}, "banned": False, "username": "", "agreed": False}
+        users[uid] = {"balance": 0.0, "banned": False}
     return users[uid]
 
 def is_admin(uid): return uid in ADMIN_IDS
 
 class UserStates(StatesGroup):
     waiting_deposit_amount = State()
-    waiting_withdraw_amount = State()
-
-class AdminStates(StatesGroup):
-    waiting_broadcast = State()
 
 def main_menu(uid):
-    # ВСТАВЬ СВОЮ ССЫЛКУ С VERCEL СЮДА!
-    WEBAPP_URL = "https://cryptoapp3.vercel.app" 
+    WEBAPP_URL = "https://cryptoapp3.vercel.app" # ТВОЯ ССЫЛКА
     
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
-        [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance"),
-         InlineKeyboardButton(text="📥 Пополнить", callback_data="deposit_menu")],
-        [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_menu")],
-        [InlineKeyboardButton(text="📜 Оферта", callback_data="offer")],
+        [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance")],
     ]
     if is_admin(uid):
         kb.append([InlineKeyboardButton(text="👑 Админка", callback_data="admin_panel")])
     return InlineKeyboardMarkup(inline_keyboard=kb)
 
-async def safe_edit(call: CallbackQuery, text: str, kb: InlineKeyboardMarkup = None):
-    try:
-        if call.message.photo:
-            await call.message.edit_caption(caption=text, reply_markup=kb, parse_mode="Markdown")
-        else:
-            await call.message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
-    except:
-        await call.message.answer(text, reply_markup=kb, parse_mode="Markdown")
-
 @dp.message(Command("start"))
 async def start(message: Message):
     uid = message.from_user.id
     get_user(uid)
-    users[uid]["username"] = message.from_user.username or ""
-    if users[uid].get("banned"): return await message.answer("🚫 Вы забанены.")
     await message.answer("👋 **Добро пожаловать в CryptoGamma!**\n\nВыбери действие:", reply_markup=main_menu(uid), parse_mode="Markdown")
-
-@dp.callback_query(F.data == "back_to_menu")
-async def back_to_menu(call: CallbackQuery):
-    await safe_edit(call, "👋 **Главное меню**", main_menu(call.from_user.id))
-    await call.answer()
 
 @dp.callback_query(F.data == "balance")
 async def show_balance(call: CallbackQuery):
     user = get_user(call.from_user.id)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]])
-    await safe_edit(call, f"💰 Баланс: `{user['balance']['USDT']:.4f}` USDT", kb)
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]])
+    await call.message.edit_text(f"💰 Баланс: `{user['balance']:.4f}` USDT", reply_markup=kb, parse_mode="Markdown")
     await call.answer()
 
-@dp.callback_query(F.data == "offer")
-async def show_offer(call: CallbackQuery):
-    text = "📜 **Оферта**\n\n1. Сервис внутренний.\n2. Вывод в разработке.\n3. Вы соглашаетесь с рисками."
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Принимаю", callback_data="accept_offer")], [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]])
-    await safe_edit(call, text, kb)
-    await call.answer()
+@dp.callback_query(F.data == "back")
+async def back(call: CallbackQuery):
+    await call.message.edit_text("👋 Главное меню", reply_markup=main_menu(call.from_user.id))
 
-@dp.callback_query(F.data == "accept_offer")
-async def accept_offer(call: CallbackQuery):
-    get_user(call.from_user.id)["agreed"] = True
-    await call.answer("✅ Оферта принята!", show_alert=True)
-    await back_to_menu(call)
-
-@dp.callback_query(F.data == "deposit_menu")
-async def deposit_menu(call: CallbackQuery):
-    if not get_user(call.from_user.id).get("agreed"):
-        await call.answer("⚠️ Сначала примите Оферту!", show_alert=True)
-        return await show_offer(call)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="💵 Ввести сумму", callback_data="dep_custom")], [InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]])
-    await safe_edit(call, "📥 **Пополнение**", kb)
-    await call.answer()
-
-@dp.callback_query(F.data == "dep_custom")
-async def dep_custom(call: CallbackQuery, state: FSMContext):
-    await state.set_state(UserStates.waiting_deposit_amount)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="❌ Отмена", callback_data="back_to_menu")]])
-    await safe_edit(call, "✍️ Введи сумму в чат:", kb)
-    await call.answer()
-
-@dp.message(UserStates.waiting_deposit_amount)
-async def process_deposit(message: Message, state: FSMContext):
+# ==================== ЛОВИМ ДАННЫЕ ИЗ MINI APP ====================
+@dp.message(F.web_app_data)
+async def web_app_handler(message: Message):
     try:
-        amount = float(message.text)
-        if amount <= 0: raise ValueError
-    except:
-        return await message.answer("❌ Введи число.")
-    await state.clear()
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ В меню", callback_data="back_to_menu")]])
-    await message.answer(f"✅ Введено {amount} USDT (Заглушка API)", reply_markup=kb)
+        data = json.loads(message.web_app_data.data)
+        action = data.get("action")
+        uid = message.from_user.id
 
-@dp.callback_query(F.data == "withdraw_menu")
-async def withdraw_menu(call: CallbackQuery):
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]])
-    await safe_edit(call, "💸 **Вывод в разработке**", kb)
-    await call.answer()
+        # Пополнение
+        if action == "deposit":
+            await message.answer("📥 Чтобы пополнить, введи сумму в чат (пока заглушка):")
+            # Здесь можно добавить FSM для ввода суммы
+            
+        # Участие в розыгрыше
+        elif action == "join_giveaway":
+            await message.answer("🎉 Ты успешно участвуешь в розыгрыше 100 USDT! Удачи!")
+            
+        # Админ: Выдать баланс
+        elif action == "add_balance" and is_admin(uid):
+            target_id = int(data.get("target_id"))
+            amount = float(data.get("amount"))
+            target_user = get_user(target_id)
+            target_user["balance"] += amount
+            await message.answer(f"✅ Выдано {amount} USDT пользователю {target_id}.\nЕго новый баланс: {target_user['balance']:.2f} USDT")
+            try:
+                await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT от администратора!")
+            except:
+                pass
 
-@dp.callback_query(F.data == "admin_panel")
-async def admin_panel(call: CallbackQuery):
-    if not is_admin(call.from_user.id): return await call.answer("Нет доступа", show_alert=True)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_menu")]])
-    await safe_edit(call, "👑 **Админка (упрощенная)**", kb)
-    await call.answer()
+        # Админ: Розыгрыш
+        elif action == "start_giveaway" and is_admin(uid):
+            text = data.get("text")
+            sent = 0
+            for u in users.keys():
+                try:
+                    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎉 Участвовать", web_app=WebAppInfo(url="https://cryptoapp3.vercel.app"))]])
+                    await bot.send_message(u, f"🎁 **РОЗЫГРЫШ!**\n\n{text}\n\nНажми кнопку ниже, чтобы участвовать!", reply_markup=kb, parse_mode="Markdown")
+                    sent += 1
+                except:
+                    pass
+            await message.answer(f"✅ Розыгрыш разослан {sent} пользователям!")
+
+    except Exception as e:
+        await message.answer(f"❌ Ошибка обработки данных: {e}")
 
 # ==================== ВЕБ-СЕРВЕР ДЛЯ RENDER ====================
 async def handle(request):
