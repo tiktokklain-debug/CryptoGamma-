@@ -25,9 +25,7 @@ def get_user(uid):
 def is_admin(uid): return uid in ADMIN_IDS
 
 def main_menu(uid):
-    # ВСТАВЬ СЮДА СВОЮ ССЫЛКУ С VERCEL!
-    WEBAPP_URL = "cryptoapp-67.vercel.app" 
-    
+    WEBAPP_URL = "cryptoapp-67.vercel.app" # ТВОЯ ССЫЛКА
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance")],
@@ -38,22 +36,31 @@ def main_menu(uid):
 
 @dp.message(Command("start"))
 async def start(message: Message):
-    uid = message.from_user.id
-    get_user(uid)
-    users[uid]["username"] = message.from_user.username or ""
-    await message.answer("👋 **Добро пожаловать в CryptoGamma!**\n\nВыбери действие:", reply_markup=main_menu(uid), parse_mode="Markdown")
+    try:
+        uid = message.from_user.id
+        get_user(uid)
+        users[uid]["username"] = message.from_user.username or ""
+        await message.answer("👋 **Добро пожаловать в CryptoGamma!**\n\nВыбери действие:", reply_markup=main_menu(uid), parse_mode="Markdown")
+    except Exception as e:
+        print(f"Ошибка в start: {e}")
 
 @dp.callback_query(F.data == "balance")
 async def show_balance(call: CallbackQuery):
-    user = get_user(call.from_user.id)
-    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]])
-    await call.message.edit_text(f"💰 Баланс: `{user['balance']:.4f}` USDT", reply_markup=kb, parse_mode="Markdown")
-    await call.answer()
+    try:
+        user = get_user(call.from_user.id)
+        kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Назад", callback_data="back")]])
+        await call.message.edit_text(f"💰 Баланс: `{user['balance']:.4f}` USDT", reply_markup=kb, parse_mode="Markdown")
+        await call.answer()
+    except Exception as e:
+        await call.answer("Ошибка", show_alert=True)
 
 @dp.callback_query(F.data == "back")
 async def back(call: CallbackQuery):
-    await call.message.edit_text("👋 Главное меню", reply_markup=main_menu(call.from_user.id))
-    await call.answer()
+    try:
+        await call.message.edit_text("👋 Главное меню", reply_markup=main_menu(call.from_user.id))
+        await call.answer()
+    except:
+        pass
 
 @dp.callback_query(F.data == "admin_panel")
 async def admin_panel(call: CallbackQuery):
@@ -83,9 +90,9 @@ async def web_app_handler(message: Message):
             amount = float(data.get("amount"))
             target_user = get_user(target_id)
             target_user["balance"] += amount
-            await message.answer(f"✅ Выдано {amount} USDT пользователю {target_id}.\nЕго баланс: {target_user['balance']:.2f} USDT")
+            await message.answer(f"✅ Выдано {amount} USDT пользователю {target_id}.")
             try:
-                await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT от администратора!")
+                await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT!")
             except:
                 pass
 
@@ -94,13 +101,13 @@ async def web_app_handler(message: Message):
                 return await message.answer("❌ У вас нет прав администратора.")
             text = data.get("text")
             sent = 0
-            for u in users.keys():
+            for u in list(users.keys()):
                 try:
                     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🎉 Участвовать", web_app=WebAppInfo(url="https://cryptoapp3.vercel.app"))]])
                     await bot.send_message(u, f"🎁 **РОЗЫГРЫШ!**\n\n{text}\n\nНажми кнопку ниже, чтобы участвовать!", reply_markup=kb, parse_mode="Markdown")
                     sent += 1
                 except:
-                    pass
+                    pass # Если пользователь заблокировал бота, просто пропускаем его
             await message.answer(f"✅ Розыгрыш разослан {sent} пользователям!")
 
     except Exception as e:
