@@ -33,7 +33,7 @@ class AdminStates(StatesGroup):
 
 def main_menu(uid):
     # Кнопка Mini App (пока ведет на заглушку, потом заменишь на свою ссылку с Vercel)
-    web_app_url = "https://telegram.org" 
+    web_app_url = "cryptoapp-1-if4v8etmq-crypto-gamma-bot.vercel.app" 
     
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=web_app_url))],
