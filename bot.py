@@ -9,8 +9,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-# Токен берется из настроек Render (Environment Variables)
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН_СЮДА")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
 
 bot = Bot(token=BOT_TOKEN)
@@ -32,11 +31,11 @@ class AdminStates(StatesGroup):
     waiting_broadcast = State()
 
 def main_menu(uid):
-    # Кнопка Mini App (пока ведет на заглушку, потом заменишь на свою ссылку с Vercel)
-    web_app_url = "cryptoapp-1-if4v8etmq-crypto-gamma-bot.vercel.app" 
+    # ВСТАВЬ СВОЮ ССЫЛКУ С VERCEL СЮДА!
+    WEBAPP_URL = "cryptoapp3-pkxk5pq21-crypto-gamma-bot.vercel.app" 
     
     kb = [
-        [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=web_app_url))],
+        [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
         [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance"),
          InlineKeyboardButton(text="📥 Пополнить", callback_data="deposit_menu")],
         [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_menu")],
@@ -60,8 +59,7 @@ async def start(message: Message):
     uid = message.from_user.id
     get_user(uid)
     users[uid]["username"] = message.from_user.username or ""
-    if users[uid].get("banned"):
-        return await message.answer("🚫 Вы забанены.")
+    if users[uid].get("banned"): return await message.answer("🚫 Вы забанены.")
     await message.answer("👋 **Добро пожаловать в CryptoGamma!**\n\nВыбери действие:", reply_markup=main_menu(uid), parse_mode="Markdown")
 
 @dp.callback_query(F.data == "back_to_menu")
