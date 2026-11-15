@@ -4,12 +4,13 @@ import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
+# Токен берется из настроек Render (Environment Variables)
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН_СЮДА")
 ADMIN_IDS = [8636027393]
 
 bot = Bot(token=BOT_TOKEN)
@@ -31,7 +32,11 @@ class AdminStates(StatesGroup):
     waiting_broadcast = State()
 
 def main_menu(uid):
+    # Кнопка Mini App (пока ведет на заглушку, потом заменишь на свою ссылку с Vercel)
+    web_app_url = "https://telegram.org" 
+    
     kb = [
+        [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=web_app_url))],
         [InlineKeyboardButton(text="💰 Мой баланс", callback_data="balance"),
          InlineKeyboardButton(text="📥 Пополнить", callback_data="deposit_menu")],
         [InlineKeyboardButton(text="💸 Вывод", callback_data="withdraw_menu")],
@@ -143,4 +148,4 @@ async def main():
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
-    asyncio.run(main())фф
+    asyncio.run(main())
