@@ -14,7 +14,7 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
-WEBAPP_URL = "https://cryptoapperoe.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
+WEBAPP_URL = "https://cryptoapperroe.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
 XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMwNzY4NiIsImp0aSI6ImFwcDozMDc2ODY6MTFhOTJmMDctNzY3ZS00MjIyLWJmZTEtNGViYTMzZDFlNGRjIiwiaWF0IjoxNzk0NzcyNDg0fQ.QMufXBwVwwKzEePsAjDzggAiosSwtlOiALEj85y_Q7I" 
 REF_BONUS = 0.05
 
