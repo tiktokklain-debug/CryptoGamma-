@@ -14,8 +14,8 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
-WEBAPP_URL = "https://cryptoapperroe.vercel.app"
-XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMwNzY4NiIsImp0aSI6ImFwcDozMDc2ODY6MTFhOTJmMDctNzY3ZS00MjIyLWJmZTEtNGViYTMzZDFlNGRjIiwiaWF0IjoxNzk0NzcyNDg0fQ.QMufXBwVwwKzEePsAjDzggAiosSwtlOiALEj85y_Q7I" # Вставь свой ключ из xRocket Pay
+WEBAPP_URL = "https://cryptoapperoe.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
+XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMwNzY4NiIsImp0aSI6ImFwcDozMDc2ODY6MTFhOTJmMDctNzY3ZS00MjIyLWJmZTEtNGViYTMzZDFlNGRjIiwiaWF0IjoxNzk0NzcyNDg0fQ.QMufXBwVwwKzEePsAjDzggAiosSwtlOiALEj85y_Q7I" 
 REF_BONUS = 0.05
 
 bot = Bot(token=BOT_TOKEN)
@@ -147,19 +147,24 @@ async def web_app_handler(message: Message):
     except Exception as e:
         await message.answer(f"❌ Ошибка: {e}")
 
-# ==================== ВЕБ-СЕРВЕР ====================
+# ==================== ВЕБ-СЕРВЕР ДЛЯ RENDER ====================
 async def handle(request):
-    return web.Response(text="Bot is alive!")
+    return web.Response(text="CryptoGamma is alive!")
 
-async def main():
-    await init_db()
+async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8080)))
+    port = int(os.environ.get("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
-    print("Bot started!")
+
+async def main():
+    print("Инициализация базы данных...")
+    await init_db()
+    print("CryptoGamma запущен на Render!")
+    await start_web_server() # Запускаем веб-сервер, чтобы Render не ругался
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
