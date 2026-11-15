@@ -32,7 +32,7 @@ class AdminStates(StatesGroup):
 
 def main_menu(uid):
     # ВСТАВЬ СВОЮ ССЫЛКУ С VERCEL СЮДА!
-    WEBAPP_URL = "cryptoapp3-pkxk5pq21-crypto-gamma-bot.vercel.app" 
+    WEBAPP_URL = "https://cryptoapp3.vercel.app" 
     
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
