@@ -29,7 +29,7 @@ class UserStates(StatesGroup):
     waiting_deposit_amount = State()
 
 def main_menu(uid):
-    WEBAPP_URL = "https://cryptoapp3.vercel.app" # ТВОЯ ССЫЛКА
+    WEBAPP_URL = "cryptoapp-67.vercel.app" # ТВОЯ ССЫЛКА
     
     kb = [
         [InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))],
