@@ -14,8 +14,8 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 # ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
-WEBAPP_URL = "https://cryptoapperroe.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
-XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHBJZCI6IjMwNzY4NiIsImp0aSI6ImFwcDozMDc2ODY6MTFhOTJmMDctNzY3ZS00MjIyLWJmZTEtNGViYTMzZDFlNGRjIiwiaWF0IjoxNzk0NzcyNDg0fQ.QMufXBwVwwKzEePsAjDzggAiosSwtlOiALEj85y_Q7I" 
+WEBAPP_URL = "https://cryptoapp999.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
+XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiIweDAiLCJ1c2VySWQiOiIxNDE0NjAyNyIsImp0aSI6InVzZXI6MTQxNDYwMjc6ZjQ5NDk2ZWItMmQ3NS00NmIyLWI1OTUtZGM3YTA2ODdjZmQ2IiwidHlwZSI6ImV4Y2hhbmdlIiwicGxhdGZvcm0iOiJleGNoYW5nZV9hcGkiLCJpYXQiOjE3OTQ0Mjk3MzR9.gF1vaCUb3Q48UtS2z2RvOwDtZOYelLGtpQzMw_2bmTI" # ВСТАВЬ СЮДА КЛЮЧ ИЗ xROCKET PAY
 REF_BONUS = 0.05
 
 bot = Bot(token=BOT_TOKEN)
@@ -83,19 +83,41 @@ async def web_app_handler(message: Message):
         if action == "create_invoice":
             await message.answer("⏳ Генерирую адрес...")
             
-            # ТУТ ДОЛЖЕН БЫТЬ ЗАПРОС К API XROCKET
-            # Для теста даем фейковый адрес
-            address = "TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE"
+            # ЗАПРОС К XROCKET PAY API
+            url = "https://pay.api.xrocket.exchange/api/v1/invoices/payments/address"
+            headers = {"Authorization": f"Bearer {XROCKET_PAY_KEY}", "Content-Type": "application/json"}
             
-            qr = qrcode.QRCode(version=1, box_size=10, border=4)
-            qr.add_data(address)
-            qr.make(fit=True)
-            img = qr.make_image(fill_color="black", back_color="white")
-            bio = BytesIO()
-            img.save(bio, format="PNG")
-            bio.seek(0)
-            
-            await message.answer_photo(photo=BufferedInputFile(bio.read(), filename="qr.png"), caption=f"✅ **Адрес для пополнения (USDT TRC-20):**\n\n`{address}`", parse_mode="Markdown")
+            try:
+                # 1. Создаем инвойс
+                invoice_url = "https://pay.api.xrocket.exchange/api/v1/invoices"
+                invoice_payload = {"currency": "USDT", "amount": 10.0, "description": f"Deposit", "payload": str(uid), "expiredIn": 86400}
+                
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(invoice_url, json=invoice_payload, headers=headers) as resp:
+                        inv_data = await resp.json()
+                        inv_id = inv_data.get("data", {}).get("id") or inv_data.get("id")
+                    
+                    # 2. Получаем адрес
+                    addr_payload = {"invoiceId": inv_id, "payNetwork": "TRC20"}
+                    async with session.post(url, json=addr_payload, headers=headers) as resp:
+                        addr_data = await resp.json()
+                        address = addr_data.get("address") or addr_data.get("data", {}).get("address")
+                
+                if address:
+                    # 3. Генерируем QR-код
+                    qr = qrcode.QRCode(version=1, box_size=10, border=4)
+                    qr.add_data(address)
+                    qr.make(fit=True)
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    bio = BytesIO()
+                    img.save(bio, format="PNG")
+                    bio.seek(0)
+                    
+                    await message.answer_photo(photo=BufferedInputFile(bio.read(), filename="qr.png"), caption=f"✅ **Адрес для пополнения (USDT TRC-20):**\n\n`{address}`", parse_mode="Markdown")
+                else:
+                    await message.answer(f"❌ Ошибка xRocket. Проверь ключ.\nОтвет: {addr_data}")
+            except Exception as e:
+                await message.answer(f"❌ Ошибка API: {e}")
 
         elif action == "add_balance" and uid in ADMIN_IDS:
             target_id = int(data.get("target_id"))
@@ -103,8 +125,7 @@ async def web_app_handler(message: Message):
             await get_user(target_id)
             await update_balance(target_id, amount, "Пополнение админом")
             await message.answer(f"✅ Выдано `{amount}` USDT пользователю `{target_id}`.", parse_mode="Markdown")
-            try:
-                await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT!")
+            try: await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT!")
             except: pass
 
         elif action == "toggle_ban" and uid in ADMIN_IDS:
@@ -123,20 +144,16 @@ async def web_app_handler(message: Message):
                     all_users = await cursor.fetchall()
             sent = 0
             for u in all_users:
-                try:
-                    await bot.send_message(u[0], f"📢 {text}")
-                    sent += 1
+                try: await bot.send_message(u[0], f"📢 {text}"); sent += 1
                 except: pass
             await message.answer(f"✅ Рассылка отправлена `{sent}` пользователям.")
 
         elif action == "get_history":
             history = await get_history(uid)
-            if not history:
-                await message.answer("📜 История пуста.")
+            if not history: await message.answer("📜 История пуста.")
             else:
                 text = "📜 **История:**\n\n"
-                for h in history:
-                    text += f"• {h[2]} | {h[0]}: `{h[1]}` USDT\n"
+                for h in history: text += f"• {h[2]} | {h[0]}: `{h[1]}` USDT\n"
                 await message.answer(text, parse_mode="Markdown")
 
         elif action == "ref_link":
@@ -148,23 +165,19 @@ async def web_app_handler(message: Message):
         await message.answer(f"❌ Ошибка: {e}")
 
 # ==================== ВЕБ-СЕРВЕР ДЛЯ RENDER ====================
-async def handle(request):
-    return web.Response(text="CryptoGamma is alive!")
-
+async def handle(request): return web.Response(text="Bot is alive!")
 async def start_web_server():
     app = web.Application()
     app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.get("PORT", 8080))
-    site = web.TCPSite(runner, "0.0.0.0", port)
+    site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8080)))
     await site.start()
 
 async def main():
-    print("Инициализация базы данных...")
     await init_db()
-    print("CryptoGamma запущен на Render!")
-    await start_web_server() # Запускаем веб-сервер, чтобы Render не ругался
+    print("CryptoGamma запущен!")
+    await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
