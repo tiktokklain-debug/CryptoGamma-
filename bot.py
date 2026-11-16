@@ -3,182 +3,186 @@ import os
 import aiohttp
 import aiosqlite
 import json
-import qrcode
-from io import BytesIO
 from datetime import datetime
 from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.filters import Command
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, BufferedInputFile
+from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeyboardButton
 
-# ==================== НАСТРОЙКИ ====================
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
-WEBAPP_URL = "https://cryptoapp999.vercel.app" # ТВОЯ ССЫЛКА С VERCEL
-XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiIweDAiLCJ1c2VySWQiOiIxNDE0NjAyNyIsImp0aSI6InVzZXI6MTQxNDYwMjc6ZjQ5NDk2ZWItMmQ3NS00NmIyLWI1OTUtZGM3YTA2ODdjZmQ2IiwidHlwZSI6ImV4Y2hhbmdlIiwicGxhdGZvcm0iOiJleGNoYW5nZV9hcGkiLCJpYXQiOjE3OTQ0Mjk3MzR9.gF1vaCUb3Q48UtS2z2RvOwDtZOYelLGtpQzMw_2bmTI" # ВСТАВЬ СЮДА КЛЮЧ ИЗ xROCKET PAY
-REF_BONUS = 0.05
+WEBAPP_URL = "cryptoapp32155.vercel.app" 
+XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiIweDAiLCJ1c2VySWQiOiIxNDE0NjAyNyIsImp0aSI6InVzZXI6MTQxNDYwMjc6ZjQ5NDk2ZWItMmQ3NS00NmIyLWI1OTUtZGM3YTA2ODdjZmQ2IiwidHlwZSI6ImV4Y2hhbmdlIiwicGxhdGZvcm0iOiJleGNoYW5nZV9hcGkiLCJpYXQiOjE3OTQ0Mjk3MzR9.gF1vaCUb3Q48UtS2z2RvOwDtZOYelLGtpQzMw_2bmTI" 
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
 DB_NAME = "database.db"
 
-# ==================== БАЗА ДАННЫХ ====================
 async def init_db():
     async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0, is_banned INTEGER DEFAULT 0, referrer_id INTEGER DEFAULT NULL)")
+        await db.execute("CREATE TABLE IF NOT EXISTS users (user_id INTEGER PRIMARY KEY, balance REAL DEFAULT 0.0, is_banned INTEGER DEFAULT 0)")
         await db.execute("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, type TEXT, amount REAL, date TEXT)")
+        await db.execute("CREATE TABLE IF NOT EXISTS checks (code TEXT PRIMARY KEY, amount REAL, is_used INTEGER DEFAULT 0, used_by INTEGER DEFAULT NULL)")
         await db.commit()
 
-async def get_user(uid):
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT * FROM users WHERE user_id = ?", (uid,)) as cursor:
-            user = await cursor.fetchone()
-            if not user:
-                await db.execute("INSERT INTO users (user_id) VALUES (?)", (uid,))
-                await db.commit()
-                return {"user_id": uid, "balance": 0.0, "is_banned": 0, "referrer_id": None}
-            return {"user_id": user[0], "balance": user[1], "is_banned": user[2], "referrer_id": user[3]}
-
-async def update_balance(uid, amount, type_op="Бонус"):
-    async with aiosqlite.connect(DB_NAME) as db:
-        await db.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, uid))
-        now = datetime.now().strftime("%Y-%m-%d %H:%M")
-        await db.execute("INSERT INTO history (user_id, type, amount, date) VALUES (?, ?, ?, ?)", (uid, type_op, amount, now))
-        await db.commit()
-
-async def get_history(uid):
-    async with aiosqlite.connect(DB_NAME) as db:
-        async with db.execute("SELECT type, amount, date FROM history WHERE user_id = ? ORDER BY id DESC LIMIT 10", (uid,)) as cursor:
-            return await cursor.fetchall()
-
-# ==================== МЕНЮ ====================
-@dp.message(Command("start"))
-async def start(message: Message):
-    uid = message.from_user.id
-    args = message.text.split()
-    user = await get_user(uid)
-    
-    if len(args) > 1 and args[1].isdigit():
-        ref_id = int(args[1])
-        if ref_id != uid and user["referrer_id"] is None:
-            await get_user(ref_id)
-            await update_balance(ref_id, REF_BONUS, "Реферальный бонус")
-            async with aiosqlite.connect(DB_NAME) as db:
-                await db.execute("UPDATE users SET referrer_id = ? WHERE user_id = ?", (ref_id, uid))
-                await db.commit()
-            try:
-                await bot.send_message(ref_id, f"🎉 По твоей ссылке зашел друг! Тебе начислено {REF_BONUS} USDT.")
-            except: pass
-
-    await message.answer("👋 **Добро пожаловать в CryptoGamma!**", reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть Mini App", web_app=WebAppInfo(url=WEBAPP_URL))]]), parse_mode="Markdown")
-
-# ==================== ОБРАБОТКА ДАННЫХ ====================
-@dp.message(F.web_app_data)
-async def web_app_handler(message: Message):
+# ==================== API ДЛЯ MINI APP ====================
+async def api_get_prices(request):
     try:
-        data = json.loads(message.web_app_data.data)
-        action = data.get("action")
-        uid = message.from_user.id
+        url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,binancecoin,ripple,dogecoin,cardano,the-open-network,tron,polkadot&vs_currencies=usd&include_24hr_change=true"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                data = await resp.json()
+                return web.json_response(data)
+    except Exception as e:
+        return web.json_response({"error": str(e)})
 
-        if action == "create_invoice":
-            await message.answer("⏳ Генерирую адрес...")
-            
-            # ЗАПРОС К XROCKET PAY API
-            url = "https://pay.api.xrocket.exchange/api/v1/invoices/payments/address"
-            headers = {"Authorization": f"Bearer {XROCKET_PAY_KEY}", "Content-Type": "application/json"}
-            
-            try:
-                # 1. Создаем инвойс
-                invoice_url = "https://pay.api.xrocket.exchange/api/v1/invoices"
-                invoice_payload = {"currency": "USDT", "amount": 10.0, "description": f"Deposit", "payload": str(uid), "expiredIn": 86400}
-                
-                async with aiohttp.ClientSession() as session:
-                    async with session.post(invoice_url, json=invoice_payload, headers=headers) as resp:
-                        inv_data = await resp.json()
-                        inv_id = inv_data.get("data", {}).get("id") or inv_data.get("id")
-                    
-                    # 2. Получаем адрес
+async def api_create_invoice(request):
+    try:
+        data = await request.json()
+        uid = data.get("user_id")
+        url = "https://pay.api.xrocket.exchange/api/v1/invoices"
+        headers = {"Authorization": f"Bearer {XROCKET_PAY_KEY}", "Content-Type": "application/json"}
+        payload = {"currency": "USDT", "amount": 10.0, "description": "Deposit", "payload": str(uid), "expiredIn": 86400}
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as resp:
+                if resp.status == 200:
+                    inv_data = await resp.json()
+                    inv_id = inv_data.get("data", {}).get("id") or inv_data.get("id")
+                    addr_url = "https://pay.api.xrocket.exchange/api/v1/invoices/payments/address"
                     addr_payload = {"invoiceId": inv_id, "payNetwork": "TRC20"}
-                    async with session.post(url, json=addr_payload, headers=headers) as resp:
+                    async with session.post(addr_url, json=addr_payload, headers=headers) as resp:
                         addr_data = await resp.json()
                         address = addr_data.get("address") or addr_data.get("data", {}).get("address")
-                
-                if address:
-                    # 3. Генерируем QR-код
-                    qr = qrcode.QRCode(version=1, box_size=10, border=4)
-                    qr.add_data(address)
-                    qr.make(fit=True)
-                    img = qr.make_image(fill_color="black", back_color="white")
-                    bio = BytesIO()
-                    img.save(bio, format="PNG")
-                    bio.seek(0)
-                    
-                    await message.answer_photo(photo=BufferedInputFile(bio.read(), filename="qr.png"), caption=f"✅ **Адрес для пополнения (USDT TRC-20):**\n\n`{address}`", parse_mode="Markdown")
-                else:
-                    await message.answer(f"❌ Ошибка xRocket. Проверь ключ.\nОтвет: {addr_data}")
-            except Exception as e:
-                await message.answer(f"❌ Ошибка API: {e}")
-
-        elif action == "add_balance" and uid in ADMIN_IDS:
-            target_id = int(data.get("target_id"))
-            amount = float(data.get("amount"))
-            await get_user(target_id)
-            await update_balance(target_id, amount, "Пополнение админом")
-            await message.answer(f"✅ Выдано `{amount}` USDT пользователю `{target_id}`.", parse_mode="Markdown")
-            try: await bot.send_message(target_id, f"🎁 Вам начислено {amount} USDT!")
-            except: pass
-
-        elif action == "toggle_ban" and uid in ADMIN_IDS:
-            target_id = int(data.get("target_id"))
-            user = await get_user(target_id)
-            new_status = 0 if user["is_banned"] else 1
-            async with aiosqlite.connect(DB_NAME) as db:
-                await db.execute("UPDATE users SET is_banned = ? WHERE user_id = ?", (new_status, target_id))
-                await db.commit()
-            await message.answer(f"✅ Статус `{target_id}` изменен.")
-
-        elif action == "broadcast" and uid in ADMIN_IDS:
-            text = data.get("text")
-            async with aiosqlite.connect(DB_NAME) as db:
-                async with db.execute("SELECT user_id FROM users") as cursor:
-                    all_users = await cursor.fetchall()
-            sent = 0
-            for u in all_users:
-                try: await bot.send_message(u[0], f"📢 {text}"); sent += 1
-                except: pass
-            await message.answer(f"✅ Рассылка отправлена `{sent}` пользователям.")
-
-        elif action == "get_history":
-            history = await get_history(uid)
-            if not history: await message.answer("📜 История пуста.")
-            else:
-                text = "📜 **История:**\n\n"
-                for h in history: text += f"• {h[2]} | {h[0]}: `{h[1]}` USDT\n"
-                await message.answer(text, parse_mode="Markdown")
-
-        elif action == "ref_link":
-            bot_info = await bot.get_me()
-            ref_link = f"https://t.me/{bot_info.username}?start={uid}"
-            await message.answer(f"👥 Твоя ссылка:\n`{ref_link}`", parse_mode="Markdown")
-
+                        if address: return web.json_response({"address": address})
+        return web.json_response({"error": "Ошибка xRocket"}, status=400)
     except Exception as e:
-        await message.answer(f"❌ Ошибка: {e}")
+        return web.json_response({"error": str(e)}, status=500)
 
-# ==================== ВЕБ-СЕРВЕР ДЛЯ RENDER ====================
+async def api_get_ref(request):
+    bot_info = await bot.get_me()
+    return web.json_response({"bot_username": bot_info.username})
+
+async def api_get_history(request):
+    uid = request.query.get('user_id')
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute("SELECT type, amount, date FROM history WHERE user_id = ? ORDER BY id DESC LIMIT 20", (uid,)) as cursor:
+            rows = await cursor.fetchall()
+            history = [{"type": r[0], "amount": r[1], "date": r[2]} for r in rows]
+            return web.json_response({"history": history})
+
+async def api_activate_check(request):
+    try:
+        data = await request.json()
+        code = data.get("code")
+        uid = data.get("user_id")
+        async with aiosqlite.connect(DB_NAME) as db:
+            async with db.execute("SELECT amount, is_used FROM checks WHERE code = ?", (code,)) as cursor:
+                check = await cursor.fetchone()
+                if not check: return web.json_response({"error": "Чек не найден"})
+                if check[1] == 1: return web.json_response({"error": "Этот чек уже активирован"})
+                amount = check[0]
+                await db.execute("UPDATE checks SET is_used = 1, used_by = ? WHERE code = ?", (uid, code))
+                await db.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, uid))
+                now = datetime.now().strftime("%Y-%m-%d %H:%M")
+                await db.execute("INSERT INTO history (user_id, type, amount, date) VALUES (?, 'Чек', ?, ?)", (uid, amount, now))
+                await db.commit()
+                return web.json_response({"success": True, "amount": amount})
+    except Exception as e:
+        return web.json_response({"error": str(e)})
+
+async def api_admin_create_check(request):
+    data = await request.json()
+    if data.get("admin_code") != "19091977": return web.json_response({"error": "Нет доступа"})
+    code = data.get("check_name")
+    amount = float(data.get("amount"))
+    async with aiosqlite.connect(DB_NAME) as db:
+        try:
+            await db.execute("INSERT INTO checks (code, amount) VALUES (?, ?)", (code, amount))
+            await db.commit()
+            return web.json_response({"success": True})
+        except:
+            return web.json_response({"error": "Такой код уже есть"})
+
+async def api_admin_action(request):
+    data = await request.json()
+    if data.get("admin_code") != "19091977": return web.json_response({"error": "Нет доступа"})
+    action = data.get("action")
+    target_id = data.get("target_id")
+    amount = data.get("amount")
+    text = data.get("text")
+    
+    async with aiosqlite.connect(DB_NAME) as db:
+        if action == "add_balance":
+            await db.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (float(amount), int(target_id)))
+            await db.execute("INSERT INTO history (user_id, type, amount, date) VALUES (?, 'Пополнение', ?, datetime('now'))", (int(target_id), float(amount)))
+            await db.commit()
+            try: await bot.send_message(int(target_id), f"🎁 Вам начислено {amount} USDT!")
+            except: pass
+            return web.json_response({"success": True})
+        elif action == "sub_balance":
+            await db.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (float(amount), int(target_id)))
+            await db.commit()
+            return web.json_response({"success": True})
+        elif action == "ban":
+            await db.execute("UPDATE users SET is_banned = 1 WHERE user_id = ?", (int(target_id),))
+            await db.commit()
+            return web.json_response({"success": True})
+        elif action == "unban":
+            await db.execute("UPDATE users SET is_banned = 0 WHERE user_id = ?", (int(target_id),))
+            await db.commit()
+            return web.json_response({"success": True})
+        elif action == "broadcast":
+            async with db.execute("SELECT user_id FROM users") as cursor:
+                users = await cursor.fetchall()
+            sent = 0
+            for u in users:
+                try: 
+                    await bot.send_message(u[0], f"📢 {text}")
+                    sent += 1
+                except: pass
+            return web.json_response({"success": True, "sent": sent})
+    return web.json_response({"error": "Неизвестное действие"})
+
+# ==================== ВЕБ-СЕРВЕР ====================
 async def handle(request): return web.Response(text="Bot is alive!")
-async def start_web_server():
+
+async def main():
+    await init_db()
     app = web.Application()
     app.router.add_get("/", handle)
+    app.router.add_get("/api/prices", api_get_prices)
+    app.router.add_post("/api/create_invoice", api_create_invoice)
+    app.router.add_get("/api/ref", api_get_ref)
+    app.router.add_get("/api/history", api_get_history)
+    app.router.add_post("/api/activate_check", api_activate_check)
+    app.router.add_post("/api/admin/create_check", api_admin_create_check)
+    app.router.add_post("/api/admin/action", api_admin_action)
+    
+    async def cors_middleware(app, handler):
+        async def middleware_handler(request):
+            if request.method == "OPTIONS": response = web.Response()
+            else: response = await handler(request)
+            response.headers['Access-Control-Allow-Origin'] = '*'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type'
+            return response
+        return middleware_handler
+
+    app.middlewares.append(cors_middleware)
+    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", int(os.environ.get("PORT", 8080)))
     await site.start()
-
-async def main():
-    await init_db()
-    print("CryptoGamma запущен!")
-    await start_web_server()
+    
+    print("Бот запущен!")
     await dp.start_polling(bot)
+
+@dp.message(Command("start"))
+async def start(message: Message):
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🚀 Открыть", web_app=WebAppInfo(url=WEBAPP_URL))]])
+    await message.answer("Добро пожаловать!", reply_markup=kb)
 
 if __name__ == "__main__":
     asyncio.run(main())
