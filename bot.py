@@ -11,7 +11,7 @@ from aiogram.types import Message, WebAppInfo, InlineKeyboardMarkup, InlineKeybo
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "ТВОЙ_ТОКЕН")
 ADMIN_IDS = [8636027393]
-WEBAPP_URL = "cryptoapp32155.vercel.app" 
+WEBAPP_URL = "https://cryptoapp32155.vercel.app"
 XROCKET_PAY_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcHAiOiIweDAiLCJ1c2VySWQiOiIxNDE0NjAyNyIsImp0aSI6InVzZXI6MTQxNDYwMjc6ZjQ5NDk2ZWItMmQ3NS00NmIyLWI1OTUtZGM3YTA2ODdjZmQ2IiwidHlwZSI6ImV4Y2hhbmdlIiwicGxhdGZvcm0iOiJleGNoYW5nZV9hcGkiLCJpYXQiOjE3OTQ0Mjk3MzR9.gF1vaCUb3Q48UtS2z2RvOwDtZOYelLGtpQzMw_2bmTI" 
 
 bot = Bot(token=BOT_TOKEN)
