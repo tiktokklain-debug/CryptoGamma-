@@ -1,5 +1,2 @@
-aiogram
-aiohttp
-aiosqlite
-qrcode
-pillow
+openai
+python-telegram-bot
